@@ -1,13 +1,38 @@
+# Dependencies
 node_modules
-**/.DS_Store
-**/tsconfig.tsbuildinfo
-.idea
-monorepo.code-workspace
-yarn-error.log
+.pnpm-store
+
+# Build outputs
 dist/
+build/
+.next/
+.turbo
+**/tsconfig.tsbuildinfo
+
+# Environment variables
 .env
 .env.*
-!.env.sample
-.turbo
-.pnpm-store
+!.env.example
+
+# Logs
+*.log
+yarn-error.log
+npm-debug.log*
+
+# OS files
+**/.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+monorepo.code-workspace
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.swp
 .claude

@@ -21,21 +21,21 @@
 
 **Purpose**: Initialize pnpm workspace + Turborepo monorepo structure
 
-- [ ] T001 Create pnpm-workspace.yaml with backend/ and frontend/ workspaces
-- [ ] T002 Create turbo.json with pipeline configuration (dev, build, db:migrate)
-- [ ] T003 Create root package.json with workspace scripts and shared dependencies
-- [ ] T004 Create docker-compose.yml for PostgreSQL 15.x/16.x development database
-- [ ] T005 [P] Create backend/package.json with NestJS 10.x, Prisma 5.x, @anthropic-ai/sdk ^0.27.0
-- [ ] T006 [P] Create frontend/package.json with Next.js 14.x, React 18.x, Tailwind 3.x, tRPC 10.x, shadcn/ui
-- [ ] T007 [P] Create backend/tsconfig.json with NestJS-compatible TypeScript configuration
-- [ ] T008 [P] Create frontend/tsconfig.json with Next.js-compatible TypeScript configuration
-- [ ] T009 [P] Create backend/nest-cli.json for NestJS CLI configuration
-- [ ] T010 [P] Create frontend/next.config.js for Next.js configuration
-- [ ] T011 [P] Create frontend/tailwind.config.ts with Tailwind CSS configuration
-- [ ] T012 [P] Create frontend/components.json for shadcn/ui configuration
-- [ ] T013 Create .gitignore for monorepo (node_modules, dist, .next, .env)
-- [ ] T014 Create .env.example files in backend/ and frontend/ with required environment variables
-- [ ] T015 [P] Install all dependencies with pnpm install from repository root
+- [X] T001 Create pnpm-workspace.yaml with backend/ and frontend/ workspaces
+- [X] T002 Create turbo.json with pipeline configuration (dev, build, db:migrate)
+- [X] T003 Create root package.json with workspace scripts and shared dependencies
+- [X] T004 Create docker-compose.yml for PostgreSQL 15.x/16.x development database
+- [X] T005 [P] Create backend/package.json with NestJS 10.x, Prisma 5.x, @anthropic-ai/sdk ^0.27.0
+- [X] T006 [P] Create frontend/package.json with Next.js 14.x, React 18.x, Tailwind 3.x, tRPC 10.x, shadcn/ui
+- [X] T007 [P] Create backend/tsconfig.json with NestJS-compatible TypeScript configuration
+- [X] T008 [P] Create frontend/tsconfig.json with Next.js-compatible TypeScript configuration
+- [X] T009 [P] Create backend/nest-cli.json for NestJS CLI configuration
+- [X] T010 [P] Create frontend/next.config.js for Next.js configuration
+- [X] T011 [P] Create frontend/tailwind.config.ts with Tailwind CSS configuration
+- [X] T012 [P] Create frontend/components.json for shadcn/ui configuration
+- [X] T013 Create .gitignore for monorepo (node_modules, dist, .next, .env)
+- [X] T014 Create .env.example files in backend/ and frontend/ with required environment variables
+- [X] T015 [P] Install all dependencies with pnpm install from repository root
 
 **Checkpoint**: Monorepo structure initialized, dependencies installed
 
