@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: DevInsight Agent API
+  description: AI-Powered Feature to Task Converter with multi-turn conversation flow
+  version: 1.0.0
+  contact:
+    name: DevInsight Team
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+  - url: https://api.devinsight.internal/api
+    description: Production (internal network)
+
+tags:
+  - name: Conversations
+    description: Multi-turn conversation management
+  - name: Tasks
+    description: Generated task operations
+
+paths:
+  /conversations:
+    post:
+      tags:
+        - Conversations
+      summary: Create new conversation
+      description: |
+        Initiates a new feature-to-task conversation. AI will respond with the first
+        clarifying question.
+      operationId: createConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - featureDescription
+              properties:
+                featureDescription:
+                  type: string
+                  minLength: 10
+                  maxLength: 10000
+                  description: Product manager's feature request
+                  example: "Add user profile editing with avatar upload and bio section"
+      responses:
+        '201':
+          description: Conversation created, first question returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+                  status:
+                    type: string
+                    enum: [ASKING_QUESTIONS]
+                    example: "ASKING_QUESTIONS"
+                  questionCount:
+                    type: integer
+                    example: 1
+                  question:
+                    $ref: '#/components/schemas/Question'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Conversations
+      summary: List all conversations
+      description: Returns paginated list of conversations (P4 feature)
+      operationId: listConversations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConversationStatus'
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSummary'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+  /conversations/{conversationId}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation details
+      description: Returns full conversation with messages and tasks
+      operationId: getConversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /conversations/{conversationId}/answer:
+    post:
+      tags:
+        - Conversations
+      summary: Answer clarifying question
+      description: |
+        Submit answer to AI's clarifying question. AI may:
+        - Ask another question (if questionCount < 5 and more clarity needed)
+        - Present requirements summary (if sufficient clarity achieved)
+      operationId: answerQuestion
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - answer
+              properties:
+                answer:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+                  example: "Name, email, avatar image, and bio text up to 500 characters"
+      responses:
+        '200':
+          description: Response varies based on workflow state
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/NextQuestionResponse'
+                  - $ref: '#/components/schemas/RequirementsSummaryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conversation not in ASKING_QUESTIONS state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /conversations/{conversationId}/approve:
+    post:
+      tags:
+        - Conversations
+      summary: Approve requirements
+      description: |
+        User approves AI-generated requirements summary. Triggers task generation.
+      operationId: approveRequirements
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Tasks generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskGenerationResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conversation not in AWAITING_APPROVAL state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /conversations/{conversationId}/reject:
+    post:
+      tags:
+        - Conversations
+      summary: Reject requirements
+      description: |
+        User rejects requirements summary. Returns conversation to ASKING_QUESTIONS state.
+        AI will ask a follow-up question to gather missing information.
+      operationId: rejectRequirements
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+                  description: Optional reason for rejection
+                  example: "The requirements don't mention email validation"
+      responses:
+        '200':
+          description: Returned to questioning, new question provided
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ASKING_QUESTIONS]
+                  questionCount:
+                    type: integer
+                  question:
+                    $ref: '#/components/schemas/Question'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conversation not in AWAITING_APPROVAL state
+
+  /tasks/export:
+    post:
+      tags:
+        - Tasks
+      summary: Export tasks
+      description: Export tasks in various formats (markdown, JSON, plain text)
+      operationId: exportTasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - conversationId
+                - format
+              properties:
+                conversationId:
+                  type: string
+                  format: uuid
+                format:
+                  type: string
+                  enum: [markdown, json, text]
+                  example: "markdown"
+                department:
+                  $ref: '#/components/schemas/Department'
+                  description: Optional - filter by department
+      responses:
+        '200':
+          description: Exported tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    description: Formatted task content
+                  filename:
+                    type: string
+                    example: "tasks-001-ai-task-converter.md"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ConversationStatus:
+      type: string
+      enum:
+        - ASKING_QUESTIONS
+        - AWAITING_APPROVAL
+        - GENERATING_TASKS
+        - COMPLETED
+        - FAILED
+
+    Department:
+      type: string
+      enum:
+        - DESIGN
+        - FRONTEND
+        - BACKEND
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+          example: "What specific profile fields should users be able to edit?"
+        order:
+          type: integer
+          example: 1
+
+    NextQuestionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ASKING_QUESTIONS]
+        questionCount:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 2
+        question:
+          $ref: '#/components/schemas/Question'
+
+    RequirementsSummaryResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [AWAITING_APPROVAL]
+        questionCount:
+          type: integer
+          example: 4
+        requirementsSummary:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            content:
+              type: string
+              description: Markdown-formatted requirements summary
+            order:
+              type: integer
+
+    TaskGenerationResponse:
+      type: object
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [COMPLETED]
+        tasks:
+          type: object
+          properties:
+            design:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+            frontend:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+            backend:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+        assumptions:
+          type: array
+          items:
+            type: string
+          example: ["Avatar images stored in cloud storage", "Bio supports basic formatting"]
+        generationTimeMs:
+          type: integer
+          example: 3200
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        department:
+          $ref: '#/components/schemas/Department'
+        description:
+          type: string
+          example: "Design user profile edit screen wireframes"
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+          example: ["Wireframes include all 4 profile fields", "Mobile and desktop layouts"]
+        priority:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [USER, ASSISTANT, SYSTEM]
+        messageType:
+          type: string
+          enum:
+            - FEATURE_DESCRIPTION
+            - CLARIFYING_QUESTION
+            - ANSWER
+            - REQUIREMENTS_SUMMARY
+            - APPROVAL
+            - REJECTION
+            - TASK_RESULT
+            - ERROR
+        content:
+          type: string
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        featureDescription:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        questionCount:
+          type: integer
+        taskCount:
+          type: integer
+          description: Number of generated tasks (0 if not completed)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ConversationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        featureDescription:
+          type: string
+        requirementsSummary:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        questionCount:
+          type: integer
+        assumptions:
+          type: array
+          items:
+            type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Bad Request"
+            message: "featureDescription must be at least 10 characters"
+            statusCode: 400
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Not Found"
+            message: "Conversation not found"
+            statusCode: 404
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal Server Error"
+            message: "AI service temporarily unavailable"
+            statusCode: 500
