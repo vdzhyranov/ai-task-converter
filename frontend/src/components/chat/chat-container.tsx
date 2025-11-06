@@ -218,10 +218,10 @@ export function ChatContainer() {
   };
 
   const isLoading =
-    createMutation.isLoading ||
-    answerMutation.isLoading ||
-    approveMutation.isLoading ||
-    rejectMutation.isLoading;
+    createMutation.isPending ||
+    answerMutation.isPending ||
+    approveMutation.isPending ||
+    rejectMutation.isPending;
 
   return (
     <div className="container mx-auto max-w-4xl py-8 px-4">
