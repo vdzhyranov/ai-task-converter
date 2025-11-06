@@ -1,0 +1,13 @@
+node_modules
+**/.DS_Store
+**/tsconfig.tsbuildinfo
+.idea
+monorepo.code-workspace
+yarn-error.log
+dist/
+.env
+.env.*
+!.env.sample
+.turbo
+.pnpm-store
+.claude
