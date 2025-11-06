@@ -1,17 +1,22 @@
 import { router, publicProcedure } from '../trpc';
-import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
+import { exportTasksSchema } from '../../tasks/dto/export-tasks.dto';
 
 export const tasksRouter = router({
-  // Procedures will be implemented in Phase 4
   export: publicProcedure
-    .input(
-      z.object({
-        conversationId: z.string(),
-        format: z.enum(['markdown', 'json', 'text']),
-        department: z.enum(['DESIGN', 'FRONTEND', 'BACKEND']).optional(),
-      }),
-    )
-    .query(async () => {
-      throw new Error('Not implemented');
+    .input(exportTasksSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await ctx.tasksService.exportTasks(
+          input.conversationId,
+          input.format,
+          input.department,
+        );
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: error?.message || 'Failed to export tasks',
+        });
+      }
     }),
 });

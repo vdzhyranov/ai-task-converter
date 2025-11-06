@@ -49,10 +49,10 @@
 
 ### Database & Schema
 
-- [ ] T016 Create backend/src/prisma/schema.prisma with Conversation, ConversationMessage, Task models and enums (Department, ConversationStatus, MessageRole, MessageType)
-- [ ] T017 Run pnpm --filter backend db:generate to generate Prisma Client
-- [ ] T018 Run pnpm --filter backend db:migrate --name init to create initial migration
-- [ ] T019 Verify database schema created with docker exec -it devinsight-postgres psql
+- [X] T016 Create backend/src/prisma/schema.prisma with Conversation, ConversationMessage, Task models and enums (Department, ConversationStatus, MessageRole, MessageType)
+- [X] T017 Run pnpm --filter backend db:generate to generate Prisma Client
+- [X] T018 Run pnpm --filter backend db:migrate --name init to create initial migration
+- [X] T019 Verify database schema created with docker exec -it devinsight-postgres psql
 
 ### Backend Foundation
 
