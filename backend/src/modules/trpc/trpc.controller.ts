@@ -1,6 +1,6 @@
-import { All, Controller, Next, Req, Res } from "@nestjs/common";
-import { Request, Response, NextFunction } from "express";
-import * as trpcExpress from "@trpc/server/adapters/express";
+import { All, Controller, Req, Res } from "@nestjs/common";
+import { Request, Response } from "express";
+import { resolveHTTPResponse } from "@trpc/server/http";
 import { appRouter } from "./router";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConversationsService } from "../conversations/conversations.service";
@@ -16,14 +16,19 @@ export class TrpcController {
   ) {}
 
   @All("*")
-  async handleRequest(
-    @Req() req: Request,
-    @Res() res: Response,
-    @Next() next: NextFunction
-  ) {
-    const handler = trpcExpress.createExpressMiddleware({
+  async handleRequest(@Req() req: Request, @Res() res: Response) {
+    const path = req.path.replace(/^\/api\/trpc\/?/, "");
+
+    const httpResponse = await resolveHTTPResponse({
       router: appRouter,
-      createContext: () =>
+      req: {
+        method: req.method,
+        headers: req.headers,
+        query: new URLSearchParams(req.url.split("?")[1] || ""),
+        body: req.body,
+      },
+      path,
+      createContext: async () =>
         createContext(
           this.prisma,
           this.conversationsService,
@@ -31,6 +36,14 @@ export class TrpcController {
         ),
     });
 
-    return handler(req, res, next);
+    res.status(httpResponse.status);
+
+    for (const [key, value] of Object.entries(httpResponse.headers || {})) {
+      if (value) {
+        res.setHeader(key, value);
+      }
+    }
+
+    return res.send(httpResponse.body);
   }
 }
