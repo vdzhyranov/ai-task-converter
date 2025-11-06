@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Auto-generated files
+**/generated/
+
+# Public assets
+public/
+
+# Test fixtures
+__tests__/fixtures/

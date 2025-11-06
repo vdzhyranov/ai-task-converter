@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+dist/
+build/
+.next/
+.turbo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Documentation
+specs/
+*.md
+!README.md
+
+# Temporary files
+*.tmp
+.claude
