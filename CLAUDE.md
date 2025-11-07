@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2025-11-06
 
 ## Active Technologies
+
 - TypeScript 5.3+ with Node.js 18.x LTS (002-claude-repo-integration)
 - PostgreSQL via Prisma (extend existing schema for repo credentials/cache) (002-claude-repo-integration)
 
@@ -24,7 +25,8 @@ npm test && npm run lint
 
 TypeScript 5.x with Node.js 18.x/20.x LTS: Follow standard conventions
 
-## Recent Changes
+## Recent Changes 123
+
 - 002-claude-repo-integration: Added TypeScript 5.3+ with Node.js 18.x LTS
 
 - 001-ai-task-converter: Added TypeScript 5.x with Node.js 18.x/20.x LTS
