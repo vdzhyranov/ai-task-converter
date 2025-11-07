@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Octokit } from '@octokit/rest';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Octokit } from "@octokit/rest";
 
 export interface FileContent {
   path: string;
@@ -11,33 +11,38 @@ export interface FileContent {
 
 export interface TreeNode {
   path: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   sha: string;
   size?: number;
 }
 
+interface OctokitError extends Error {
+  status?: number;
+  response?: {
+    headers?: Record<string, string>;
+  };
+}
+
 @Injectable()
-export class GithubClient {
+export class GithubClient implements OnModuleInit {
   private readonly logger = new Logger(GithubClient.name);
   private readonly octokit: InstanceType<typeof Octokit>;
   private readonly owner: string;
   private readonly repo: string;
-  private readonly defaultBranch: string;
+  private defaultBranch: string;
+  private defaultBranchInitialized = false;
 
   constructor(private readonly configService: ConfigService) {
     const repositoryUrl = this.configService.get<string>(
-      'repository.github.repositoryUrl',
+      "github.repositoryUrl"
     );
-    const accessToken = this.configService.get<string>(
-      'repository.github.accessToken',
-    );
+    const accessToken = this.configService.get<string>("github.accessToken");
     this.defaultBranch =
-      this.configService.get<string>('repository.github.defaultBranch') ||
-      'main';
+      this.configService.get<string>("github.defaultBranch") || "main";
 
     if (!repositoryUrl || !accessToken) {
       throw new Error(
-        'GitHub repository configuration missing. Set GITHUB_REPOSITORY_URL and GITHUB_ACCESS_TOKEN',
+        "GitHub repository configuration missing. Set GITHUB_REPOSITORY_URL and GITHUB_ACCESS_TOKEN"
       );
     }
 
@@ -48,10 +53,45 @@ export class GithubClient {
     }
 
     this.owner = match[1];
-    this.repo = match[2].replace(/\.git$/, '');
+    this.repo = match[2].replace(/\.git$/, "");
 
     this.octokit = new Octokit({ auth: accessToken });
     this.logger.log(`GitHub client initialized for ${this.owner}/${this.repo}`);
+  }
+
+  async onModuleInit() {
+    await this.getDefaultBranch();
+  }
+  /**
+   * Lazily fetch and cache the actual default branch from GitHub
+   */
+  private async getDefaultBranch(): Promise<string> {
+    // if (this.defaultBranchInitialized) {
+    //   return this.defaultBranch;
+    // }
+
+    try {
+      const { data: repoData } = await this.octokit.rest.repos.get({
+        owner: this.owner,
+        repo: this.repo,
+      });
+
+      this.defaultBranch = repoData.default_branch;
+      this.defaultBranchInitialized = true;
+      this.logger.log(
+        `Detected default branch: ${this.defaultBranch} for ${this.owner}/${this.repo}`
+      );
+
+      return this.defaultBranch;
+    } catch (error) {
+      console.log(error);
+      const octokitError = error as OctokitError;
+      this.logger.warn(
+        `Failed to fetch default branch, using configured: ${this.defaultBranch}. Error: ${octokitError.message}`
+      );
+      this.defaultBranchInitialized = true;
+      return this.defaultBranch;
+    }
   }
 
   /**
@@ -59,26 +99,26 @@ export class GithubClient {
    */
   async getFileContent(
     path: string,
-    ref?: string,
+    ref?: string
   ): Promise<FileContent | null> {
     return this.executeWithRetry(async () => {
       try {
-        const response = await this.octokit.repos.getContent({
+        const branch = ref || (await this.getDefaultBranch());
+        const response = await this.octokit.rest.repos.getContent({
           owner: this.owner,
           repo: this.repo,
           path,
-          ref: ref || this.defaultBranch,
+          ref: branch,
         });
 
-        if (Array.isArray(response.data) || response.data.type !== 'file') {
+        if (Array.isArray(response.data) || response.data.type !== "file") {
           this.logger.warn(`Path ${path} is not a file`);
           return null;
         }
 
-        const content = Buffer.from(
-          response.data.content,
-          'base64',
-        ).toString('utf-8');
+        const content = Buffer.from(response.data.content, "base64").toString(
+          "utf-8"
+        );
 
         return {
           path: response.data.path,
@@ -87,17 +127,19 @@ export class GithubClient {
           size: response.data.size,
         };
       } catch (error) {
+        const octokitError = error as OctokitError;
+
         // Handle specific errors
-        if (error.status === 401 || error.status === 403) {
+        if (octokitError.status === 401 || octokitError.status === 403) {
           this.logger.error(
-            `Authentication failed for ${this.owner}/${this.repo}. Check GITHUB_ACCESS_TOKEN`,
+            `Authentication failed for ${this.owner}/${this.repo}. Check GITHUB_ACCESS_TOKEN`
           );
           throw new Error(
-            'GitHub authentication failed. Please verify your access token.',
+            "GitHub authentication failed. Please verify your access token."
           );
         }
 
-        if (error.status === 404) {
+        if (octokitError.status === 404) {
           this.logger.warn(`File not found: ${path}`);
           return null;
         }
@@ -112,7 +154,7 @@ export class GithubClient {
    */
   private async executeWithRetry<T>(
     fn: () => Promise<T>,
-    maxRetries: number = 5,
+    maxRetries: number = 5
   ): Promise<T> {
     let lastError: Error | undefined;
 
@@ -120,20 +162,21 @@ export class GithubClient {
       try {
         return await fn();
       } catch (error) {
-        lastError = error;
+        const octokitError = error as OctokitError;
+        lastError = octokitError;
 
         // Rate limit handling (GitHub returns 403 with specific headers)
         if (
-          error.status === 403 &&
-          error.response?.headers?.['x-ratelimit-remaining'] === '0'
+          octokitError.status === 403 &&
+          octokitError.response?.headers?.["x-ratelimit-remaining"] === "0"
         ) {
-          const resetTime = error.response.headers['x-ratelimit-reset'];
+          const resetTime = octokitError.response.headers["x-ratelimit-reset"];
           const waitTime = resetTime
             ? (parseInt(resetTime) * 1000 - Date.now()) / 1000
             : Math.pow(2, attempt) * 1000;
 
           this.logger.warn(
-            `Rate limit exceeded. Waiting ${Math.ceil(waitTime / 1000)}s before retry ${attempt + 1}/${maxRetries}`,
+            `Rate limit exceeded. Waiting ${Math.ceil(waitTime / 1000)}s before retry ${attempt + 1}/${maxRetries}`
           );
 
           if (attempt < maxRetries - 1) {
@@ -143,10 +186,14 @@ export class GithubClient {
         }
 
         // Other retryable errors (5xx server errors)
-        if (error.status >= 500 && attempt < maxRetries - 1) {
+        if (
+          octokitError.status &&
+          octokitError.status >= 500 &&
+          attempt < maxRetries - 1
+        ) {
           const backoffTime = Math.pow(2, attempt) * 1000; // Exponential backoff
           this.logger.warn(
-            `Server error (${error.status}). Retrying in ${backoffTime / 1000}s...`,
+            `Server error (${octokitError.status}). Retrying in ${backoffTime / 1000}s...`
           );
           await this.sleep(backoffTime);
           continue;
@@ -157,7 +204,7 @@ export class GithubClient {
       }
     }
 
-    throw lastError || new Error('Unknown error occurred during retry');
+    throw lastError || new Error("Unknown error occurred during retry");
   }
 
   /**
@@ -171,45 +218,77 @@ export class GithubClient {
    * Get directory tree (file listing) with retry logic
    */
   async getFileTree(
-    path: string = '',
-    recursive: boolean = true,
+    path: string = "",
+    recursive: boolean = true
   ): Promise<TreeNode[]> {
     return this.executeWithRetry(async () => {
       try {
-        this.octokit
-        const response = await this.octokit.git.getTree({
+        // Get the actual default branch
+        const branch = await this.getDefaultBranch();
+
+        // First, get the branch reference to get the commit SHA
+        const refResponse = await this.octokit.rest.git.getRef({
           owner: this.owner,
           repo: this.repo,
-          tree_sha: this.defaultBranch,
-          recursive: recursive ? 'true' : undefined,
+          ref: `heads/${branch}`,
+        });
+
+        const commitSha = refResponse.data.object.sha;
+
+        // Then get the commit to get the tree SHA
+        const commitResponse = await this.octokit.rest.git.getCommit({
+          owner: this.owner,
+          repo: this.repo,
+          commit_sha: commitSha,
+        });
+
+        const treeSha = commitResponse.data.tree.sha;
+
+        // Finally, get the tree
+        const response = await this.octokit.rest.git.getTree({
+          owner: this.owner,
+          repo: this.repo,
+          tree_sha: treeSha,
+          recursive: recursive ? "1" : undefined,
         });
 
         return response.data.tree
           .filter((item) => {
             // Filter by path if specified
-            if (path && !item.path.startsWith(path)) {
+            if (path && !item.path?.startsWith(path)) {
               return false;
             }
-            return item.type === 'blob' || item.type === 'tree';
+            return item.type === "blob" || item.type === "tree";
           })
           .map((item) => ({
-            path: item.path,
-            type: item.type === 'blob' ? 'file' : 'dir',
-            sha: item.sha,
+            path: item.path || "",
+            type: item.type === "blob" ? ("file" as const) : ("dir" as const),
+            sha: item.sha || "",
             size: item.size,
           }));
       } catch (error) {
+        const octokitError = error as OctokitError;
+
         // Handle authentication errors
-        if (error.status === 401 || error.status === 403) {
+        if (octokitError.status === 401 || octokitError.status === 403) {
           this.logger.error(
-            `Authentication failed for ${this.owner}/${this.repo}`,
+            `Authentication failed for ${this.owner}/${this.repo}`
           );
           throw new Error(
-            'GitHub authentication failed. Please verify your access token.',
+            "GitHub authentication failed. Please verify your access token."
           );
         }
 
-        this.logger.error(`Failed to get file tree: ${error.message}`);
+        if (octokitError.status === 404) {
+          this.logger.error(
+            `Branch not found in ${this.owner}/${this.repo}. Attempted branch: ${this.defaultBranch}`
+          );
+          throw new Error(
+            `Repository branch not found. Please check your repository configuration.`
+          );
+        }
+
+        this.logger.error(`Failed to get file tree: ${octokitError.message}`);
         throw error;
       }
     });
