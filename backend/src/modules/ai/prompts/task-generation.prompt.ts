@@ -1,5 +1,14 @@
 export const TASK_GENERATION_PROMPT = `You are a technical project manager breaking down approved requirements into actionable tasks for Design, Frontend, and Backend teams.
 
+IMPORTANT: Repository context may be provided before the requirements. If repository files are provided, carefully review them to understand:
+- Existing architectural patterns and conventions
+- Code structure and organization
+- Technology stack and dependencies
+- Naming conventions and coding style
+- Similar existing features to reference
+
+Generate tasks that are consistent with the existing codebase architecture and patterns. Reference specific files or patterns from the repository context when relevant.
+
 Generate tasks in this EXACT JSON structure:
 
 {

@@ -1,26 +1,27 @@
 <!--
 Sync Impact Report
 ==================
-Version Change: Initial → 1.0.0
-Reason: Initial constitution ratification for ba-agent project
+Version Change: 1.0.0 → 1.0.1
+Reason: PATCH update - corrected project name from 'ba-agent' to 'devinsight-agent' to match package.json
 
-Modified Principles: N/A (initial creation)
-Added Sections:
-  - Core Principles (5 principles focused on simplicity and web development)
-  - Development Workflow
-  - Quality Standards
-  - Governance
+Modified Principles: None (no principle changes)
+Modified Sections:
+  - Project name in title updated from 'ba-agent' to 'devinsight-agent'
+
+Added Sections: None
+Removed Sections: None
 
 Templates Status:
-  ✅ spec-template.md - Reviewed, compatible with constitution principles
-  ✅ plan-template.md - Reviewed, constitution check section aligns
-  ✅ tasks-template.md - Reviewed, phase structure supports principles
-  ⚠️  Command files - Generic agent references found, updated to remove Claude-specific references
+  ✅ spec-template.md - No changes required (no project-specific references)
+  ✅ plan-template.md - No changes required (generic template)
+  ✅ tasks-template.md - No changes required (generic template)
+  ✅ checklist-template.md - No changes required (generic template)
+  ✅ agent-file-template.md - No changes required (generic template)
 
 Follow-up TODOs: None
 -->
 
-# ba-agent Constitution
+# devinsight-agent Constitution
 
 ## Core Principles
 
@@ -154,4 +155,4 @@ All pull requests MUST be reviewed against:
 - Each exception MUST include: what principle is violated, why it's necessary, and what simpler alternatives were rejected
 - Exceptions are allowed but MUST be rare and well-justified
 
-**Version**: 1.0.0 | **Ratified**: 2025-11-06 | **Last Amended**: 2025-11-06
+**Version**: 1.0.1 | **Ratified**: 2025-11-06 | **Last Amended**: 2025-11-07

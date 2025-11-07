@@ -11,17 +11,18 @@ datasource db {
 }
 
 model Conversation {
-  id                  String               @id @default(uuid())
-  featureDescription  String               @db.Text
-  requirementsSummary String?              @db.Text
-  generatedTasks      Json?                // JSONB for fast dashboard access
-  assumptions         String[]
-  questionCount       Int                  @default(0)
-  status              ConversationStatus   @default(ASKING_QUESTIONS)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  messages            ConversationMessage[]
-  tasks               Task[]
+  id                      String                @id @default(uuid())
+  featureDescription      String                @db.Text
+  requirementsSummary     String?               @db.Text
+  generatedTasks          Json? // JSONB for fast dashboard access
+  repositoryContextPaths  Json? // Array of file paths used in context
+  assumptions             String[]
+  questionCount           Int                   @default(0)
+  status                  ConversationStatus    @default(ASKING_QUESTIONS)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  messages                ConversationMessage[]
+  tasks                   Task[]
 
   @@index([createdAt(sort: Desc)])
   @@index([status])
@@ -54,6 +55,21 @@ model Task {
   @@index([conversationId])
   @@index([department])
   @@index([conversationId, department])
+}
+
+model RepositoryCache {
+  id             String   @id @default(uuid())
+  path           String
+  content        String   @db.Text
+  sha            String
+  size           Int
+  cachedAt       DateTime @default(now())
+  expiresAt      DateTime
+  hitCount       Int      @default(0)
+  lastAccessedAt DateTime @default(now())
+
+  @@unique([path, sha])
+  @@index([expiresAt])
 }
 
 enum Department {

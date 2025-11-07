@@ -1,3 +1,5 @@
+import repositoryConfig from './repository.config';
+
 export default () => ({
   port: parseInt(process.env.PORT!, 10) || 3000,
   database: {
@@ -9,4 +11,5 @@ export default () => ({
   cors: {
     origins: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3001"],
   },
+  ...repositoryConfig(),
 });
