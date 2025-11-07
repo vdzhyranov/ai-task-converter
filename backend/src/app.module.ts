@@ -6,6 +6,7 @@ import { TrpcModule } from './modules/trpc/trpc.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { RepositoryModule } from './modules/repository/repository.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
       load: [configuration],
     }),
     PrismaModule,
+    RepositoryModule,
     AiModule,
     ConversationsModule,
     TasksModule,

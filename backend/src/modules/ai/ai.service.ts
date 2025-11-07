@@ -6,6 +6,8 @@ import {
   REQUIREMENTS_SUMMARY_PROMPT,
   TASK_GENERATION_PROMPT,
 } from "./prompts";
+import { RepositoryService } from "../repository/repository.service";
+import { ContextDetectorService } from "../repository/context-detector.service";
 
 interface QuestionAnswer {
   question: string;
@@ -32,7 +34,11 @@ export class AiService {
   private readonly maxTokens = 4096;
   private readonly temperature = 0.3;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly repositoryService: RepositoryService,
+    private readonly contextDetector: ContextDetectorService,
+  ) {
     const apiKey = this.configService.get<string>("anthropic.apiKey");
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY is not configured");
@@ -197,6 +203,110 @@ Generate structured tasks for Design, Frontend, and Backend teams. Return JSON o
     } catch (error) {
       this.logger.error("Error generating tasks", error);
       throw new Error("Failed to generate tasks");
+    }
+  }
+
+  /**
+   * Generate structured tasks with repository context
+   * @param requirementsSummary - The approved requirements summary
+   * @param featureDescription - The original feature description for context detection
+   * @returns Tasks organized by department and the list of context file paths used
+   */
+  async generateTasksWithContext(
+    requirementsSummary: string,
+    featureDescription: string,
+  ): Promise<{ tasks: GeneratedTasks; contextPaths: string[] }> {
+    try {
+      this.logger.log("Generating tasks with repository context");
+
+      // Get file tree from repository
+      const fileTree = await this.repositoryService.getFileTree(undefined, true);
+      this.logger.debug(`Retrieved file tree: ${fileTree.length} files`);
+
+      // Detect relevant files based on feature description
+      const maxContextFiles =
+        this.configService.get<number>("repository.cache.maxContextFiles") || 50;
+      const scoredFiles = this.contextDetector.detectRelevantFiles(
+        fileTree,
+        featureDescription,
+        maxContextFiles,
+      );
+      this.logger.log(
+        `Detected ${scoredFiles.length} relevant files for context`,
+      );
+
+      // Build context string from scored files
+      const { contextString, filePaths } =
+        await this.repositoryService.buildContext(scoredFiles);
+
+      if (!contextString) {
+        this.logger.warn(
+          "No context retrieved, falling back to generateTasks without context",
+        );
+        const tasks = await this.generateTasks(requirementsSummary);
+        return { tasks, contextPaths: [] };
+      }
+
+      // Generate tasks with repository context prepended
+      const userMessage = `${contextString}
+
+---
+
+Requirements Summary:
+${requirementsSummary}
+
+Generate structured tasks for Design, Frontend, and Backend teams. Return JSON only.`;
+
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+        system: TASK_GENERATION_PROMPT,
+        messages: [{ role: "user", content: userMessage }],
+      });
+
+      const firstContent = response.content[0];
+      if (firstContent.type !== "text") {
+        throw new Error("Unexpected response format from Claude API");
+      }
+      const content = firstContent.text.trim();
+
+      // Extract JSON from code blocks if present
+      let jsonContent = content;
+      if (content.includes("```json")) {
+        const match = content.match(/```json\n([\s\S]*?)\n```/);
+        if (match) {
+          jsonContent = match[1];
+        }
+      } else if (content.includes("```")) {
+        const match = content.match(/```\n([\s\S]*?)\n```/);
+        if (match) {
+          jsonContent = match[1];
+        }
+      }
+
+      const tasks: GeneratedTasks = JSON.parse(jsonContent);
+
+      // Validate structure
+      if (
+        !tasks.design ||
+        !tasks.frontend ||
+        !tasks.backend ||
+        !Array.isArray(tasks.design) ||
+        !Array.isArray(tasks.frontend) ||
+        !Array.isArray(tasks.backend)
+      ) {
+        throw new Error("Invalid task structure returned by AI");
+      }
+
+      this.logger.log(
+        `Generated tasks with context: ${tasks.design.length} design, ${tasks.frontend.length} frontend, ${tasks.backend.length} backend (using ${filePaths.length} context files)`,
+      );
+
+      return { tasks, contextPaths: filePaths };
+    } catch (error) {
+      this.logger.error("Error generating tasks with context", error);
+      throw new Error("Failed to generate tasks with context");
     }
   }
 }

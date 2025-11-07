@@ -43,10 +43,28 @@ export class TasksService {
     try {
       this.logger.log(`Generating tasks for conversation ${conversationId}`);
 
-      // Call AI service to generate tasks
-      const generatedTasks = await this.aiService.generateTasks(
-        conversation.requirementsSummary,
-      );
+      // Extract original feature description from conversation messages
+      const messages = await this.prisma.conversationMessage.findMany({
+        where: { conversationId },
+        orderBy: { order: 'asc' },
+      });
+
+      // Find the first USER message which contains the feature description
+      const firstUserMessage = messages.find((msg) => msg.role === 'USER');
+      const featureDescription = firstUserMessage?.content || '';
+
+      if (!featureDescription) {
+        this.logger.warn(
+          'No feature description found, falling back to generateTasks without context',
+        );
+      }
+
+      // Call AI service to generate tasks with repository context
+      const { tasks: generatedTasks, contextPaths } =
+        await this.aiService.generateTasksWithContext(
+          conversation.requirementsSummary,
+          featureDescription,
+        );
 
       // Store tasks in database
       const taskRecords = [];
@@ -96,22 +114,21 @@ export class TasksService {
       });
 
       // Save task result message
-      const messages = await this.prisma.conversationMessage.findMany({
-        where: { conversationId },
-        orderBy: { order: 'asc' },
-      });
-
+      const contextMessage =
+        contextPaths.length > 0
+          ? ` (using ${contextPaths.length} repository files for context)`
+          : '';
       await this.prisma.conversationMessage.create({
         data: {
           conversationId,
           role: 'ASSISTANT',
           messageType: 'TASK_RESULT',
-          content: `Generated ${createdTasks.length} tasks (${generatedTasks.design.length} design, ${generatedTasks.frontend.length} frontend, ${generatedTasks.backend.length} backend)`,
+          content: `Generated ${createdTasks.length} tasks (${generatedTasks.design.length} design, ${generatedTasks.frontend.length} frontend, ${generatedTasks.backend.length} backend)${contextMessage}`,
           order: messages.length,
         },
       });
 
-      // Update conversation with generated tasks (JSONB for fast access)
+      // Update conversation with generated tasks and repository context paths
       await this.prisma.conversation.update({
         where: { id: conversationId },
         data: {
@@ -123,6 +140,7 @@ export class TasksService {
               backend: generatedTasks.backend,
             }),
           ),
+          repositoryContextPaths: JSON.parse(JSON.stringify(contextPaths)),
         },
       });
 
